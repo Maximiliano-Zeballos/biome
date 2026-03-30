@@ -1,15 +1,21 @@
-use crate::{js_kinds_src::AstSrc, language_kind::LanguageKind};
+use crate::{
+    js_kinds_src::{AstSrc, Field},
+    language_kind::LanguageKind,
+};
 use xtask_glue::Result;
 
 pub fn generate_grit_mappings(ast: &AstSrc, language_kind: LanguageKind) -> Result<String> {
     let lang = LanguageConfig::new(language_kind);
-
-    let legacy_patterns = lang.legacy_patterns;
-    let native_patterns = ast
+    let native_nodes = ast
         .nodes
         .iter()
         // Filter out nodes that are lists or start with "Any"
         .filter(|node| !node.name.contains("List") && !node.name.starts_with("Any"))
+        .collect::<Vec<_>>();
+
+    let legacy_patterns = lang.legacy_patterns;
+    let native_patterns = native_nodes
+        .iter()
         .map(|node| {
             format!(
                 r#"        "{}" => lang::{}::KIND_SET.iter().next(),"#,
@@ -18,6 +24,36 @@ pub fn generate_grit_mappings(ast: &AstSrc, language_kind: LanguageKind) -> Resu
         })
         .collect::<Vec<_>>()
         .join("\n");
+    let native_slot_mappings = native_nodes
+        .iter()
+        .filter_map(|node| {
+            let slots = node
+                .fields
+                .iter()
+                .enumerate()
+                .filter_map(|(index, field)| match field {
+                    Field::Node { .. } => Some(format!(
+                        r#"("{}", {})"#,
+                        field.method_name(language_kind),
+                        index,
+                    )),
+                    Field::Token { .. } => None,
+                })
+                .collect::<Vec<_>>();
+
+            if slots.is_empty() {
+                None
+            } else {
+                Some(format!(
+                    r#"        "{}" => &[{}],"#,
+                    node.name,
+                    slots.join(", "),
+                ))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let has_native_slot_mappings = !native_slot_mappings.is_empty();
 
     let header = "//! Maps GritQL pattern names to Biome's internal syntax kinds.";
     let has_legacy_patterns = !legacy_patterns.is_empty();
@@ -77,7 +113,7 @@ pub fn legacy_treesitter_slots_for_kind(kind: {syntax_kind_type}) -> &'static [(
         String::new()
     };
 
-    let legacy_mappings_section = if has_legacy_patterns {
+    let legacy_kind_mappings = if has_legacy_patterns {
         format!(
             "        // Legacy TreeSitter patterns\n{}",
             legacy_patterns
@@ -97,6 +133,45 @@ pub fn legacy_treesitter_slots_for_kind(kind: {syntax_kind_type}) -> &'static [(
         String::new()
     };
 
+    let legacy_kind_by_name = if has_legacy_patterns {
+        format!(
+            r#"/// Returns the syntax kind for a legacy TreeSitter node name.
+pub fn legacy_kind_by_name(node_name: &str) -> Option<{syntax_kind_type}> {{
+    match node_name {{
+{legacy_kind_mappings}
+
+        _ => None,
+    }}
+}}"#,
+            syntax_kind_type = lang.syntax_kind_type,
+            legacy_kind_mappings = legacy_kind_mappings,
+        )
+    } else {
+        format!(
+            r#"/// Returns the syntax kind for a legacy TreeSitter node name.
+pub fn legacy_kind_by_name(_node_name: &str) -> Option<{syntax_kind_type}> {{
+    None
+}}"#,
+            syntax_kind_type = lang.syntax_kind_type,
+        )
+    };
+
+    let native_slots_section = if has_native_slot_mappings {
+        format!(
+            r#"
+/// Returns the native Biome slot mappings for a node name.
+pub fn native_slots_for_name(node_name: &str) -> &'static [(&'static str, u32)] {{
+    match node_name {{
+{native_slot_mappings}
+        _ => &[],
+    }}
+}}"#,
+            native_slot_mappings = native_slot_mappings,
+        )
+    } else {
+        String::new()
+    };
+
     let result = format!(
         r#"
 {header}
@@ -107,24 +182,31 @@ use lang::{syntax_kind_type};
 {legacy_section}
 
 
-/// Returns the syntax kind for a legacy or native node name.
-pub fn kind_by_name(node_name: &str) -> Option<{syntax_kind_type}> {{
+{legacy_kind_by_name}
 
+/// Returns the syntax kind for a native Biome node name.
+pub fn native_kind_by_name(node_name: &str) -> Option<{syntax_kind_type}> {{
     match node_name {{
-{legacy_mappings}
 
         // Native Biome AST patterns
 {native_patterns}
         _ => None,
     }}
 }}
+
+/// Returns the syntax kind for a legacy or native node name.
+pub fn kind_by_name(node_name: &str) -> Option<{syntax_kind_type}> {{
+    legacy_kind_by_name(node_name).or_else(|| native_kind_by_name(node_name))
+}}
+{native_slots_section}
 "#,
         header = header,
         syntax_module = lang.syntax_module,
         syntax_kind_type = lang.syntax_kind_type,
         legacy_section = legacy_section,
-        legacy_mappings = legacy_mappings_section,
+        legacy_kind_by_name = legacy_kind_by_name,
         native_patterns = native_patterns,
+        native_slots_section = native_slots_section,
     );
 
     xtask_glue::reformat(result)

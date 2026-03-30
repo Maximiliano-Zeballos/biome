@@ -2,8 +2,8 @@ mod constants;
 pub mod generated_mappings;
 
 use super::{
-    DisregardedSlotCondition, GritTargetLanguageImpl, LeafEquivalenceClass, LeafNormalizer,
-    normalize_quoted_string,
+    DisregardedSlotCondition, GritNodePatternSource, GritTargetLanguageImpl, LeafEquivalenceClass,
+    LeafNormalizer, normalize_quoted_string,
 };
 use crate::{
     CompileError,
@@ -35,7 +35,7 @@ impl GritTargetLanguageImpl for JsonTargetLanguage {
     /// Returns the syntax kind for a node by name.
     ///
     /// Supports native Biome AST patterns for full language coverage.
-    fn kind_by_name(&self, node_name: &str) -> Option<JsonSyntaxKind> {
+    fn native_kind_by_name(&self, node_name: &str) -> Option<JsonSyntaxKind> {
         kind_by_name(node_name)
     }
 
@@ -56,7 +56,12 @@ impl GritTargetLanguageImpl for JsonTargetLanguage {
     /// For compatibility with existing Grit snippets (as well as the online
     /// Grit playground), node names should be aligned with TreeSitter's
     /// `ts_language_field_name_for_id()`.
-    fn named_slots_for_kind(&self, kind: GritTargetSyntaxKind) -> &'static [(&'static str, u32)] {
+    fn named_slots_for_node(
+        &self,
+        _node_name: &str,
+        kind: GritTargetSyntaxKind,
+        _source: GritNodePatternSource,
+    ) -> &'static [(&'static str, u32)] {
         let Some(kind) = kind.as_json_kind() else {
             return &[];
         };
