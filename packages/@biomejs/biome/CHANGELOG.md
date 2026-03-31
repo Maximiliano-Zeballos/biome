@@ -1,5 +1,17 @@
 # @biomejs/biome
 
+## 2.4.11
+
+### Patch Changes
+
+- [#9728](https://github.com/biomejs/biome/pull/9728) [`5085424`](https://github.com/biomejs/biome/commit/5085424db427c7874eef7ca732f237febb49fdb1) Thanks [@mkosei](https://github.com/mkosei)! - Fixed [#9696](https://github.com/biomejs/biome/issues/9696): Astro frontmatter now correctly parses regular expression literals like `/\d{4}/`.
+
+- [#9441](https://github.com/biomejs/biome/pull/9441) [`957ea4c`](https://github.com/biomejs/biome/commit/957ea4c8ebe75083ba68a98f70616c88368883c5) Thanks [@soconnor-seeq](https://github.com/soconnor-seeq)! - Fixed [#1630](https://github.com/biomejs/biome/issues/1630): LSP project selection now prefers the most specific project root in nested workspaces.
+
+- [#9745](https://github.com/biomejs/biome/pull/9745) [`d87073e`](https://github.com/biomejs/biome/commit/d87073ef5586f0cf7eb74fd0d7390a3444c591ff) Thanks [@ematipico](https://github.com/ematipico)! - Fixed [#9741](https://github.com/biomejs/biome/issues/9741): the LSP server now correctly returns the [`organizeImports`](https://biomejs.dev/assist/actions/organize-imports/) code action when the client requests it via `source.organizeImports.biome` in the `only` filter. Previously, editors with `codeAction/resolve` support (e.g. Zed) received an empty response because the action was serialized with the wrong kind (`source.biome.organizeImports` instead of `source.organizeImports.biome`).
+
+- [#9701](https://github.com/biomejs/biome/pull/9701) [`1417c3b`](https://github.com/biomejs/biome/commit/1417c3b4ece262b1500b12c9f1da1429e4d53fc4) Thanks [@dyc3](https://github.com/dyc3)! - Added the new nursery rule [`noUselessTypeConversion`](https://biomejs.dev/linter/rules/no-useless-type-conversion/), which reports redundant primitive conversion patterns such as `String(value)` when `value` is already a string.
+
 ## 2.4.10
 
 ### Patch Changes
